@@ -1,17 +1,19 @@
   ##############################################################################
- #
+ #?c
 #   This file will explore the gains possible for a matrix function using
-#   the `inline' package in R. 
+#   the `inline' package in R for a ordinal absorbing state model
 #
 #   Steps:
 #     1 Create reference results from representative inputs (and time)
-#     2 Define equivalent inline function
+#     2 Create C version using inline
 #     3 Time and run inline function, compare outputs and time
 #
     
 library(inline)
   
 load("delta_it-input.Rdata") # Simulation data point
+
+#save(gamma.mat, mm, mm.lag, nlevels, file="~/delta_it-input.Rdata", version=2)
 
 # Uncomment to test random gammas
 #gamma.mat <- gamma.mat + matrix(rnorm(20), nrow=4, ncol=5) # MIX IT UP!
@@ -122,6 +124,7 @@ inner_c <- '
       for(j=0; j<(*k); ++j)
       {
         // Use packed "U" col major storage, 
+        // Bytes are stored using triangle number offsets
         // https://software.intel.com/content/www/us/en/develop/documentation/mkl-developer-reference-c/top/lapack-routines/matrix-storage-schemes-for-lapack-routines.html
         dfdDelta[i+i*(i+1)/2] += hmat[i+j*km1] * (1-hmat[i+j*km1])*mmlag[j];
       }
@@ -135,32 +138,36 @@ inner_c <- '
     //     df.dDelta[l,m] <- -sum(hmat[l,]*hmat[m,]*mm.lag)
     //   }
     // }
-    for(i=0; i<(km1-1); ++i)
+    for(i=0; i<(km1-1); ++i)   // for (l in 1:(K1-1))
     {
-      for(j=i+1; j<km1; ++j)
+      for(j=i+1; j<km1; ++j)   //   for (m in (l+1):K1)
       {
-        for(l=0; l<(*k); ++l)
+        for(l=0; l<(*k); ++l)  // Elements to sum
         {
-          dfdDelta[i+j*(j+1)/2] += -hmat[i+l*km1]*hmat[j+l*km1]*mmlag[l];
+          dfdDelta[i+j*(j+1)/2] -= hmat[i+l*km1]*hmat[j+l*km1]*mmlag[l];
         }
       }
     }
   
     //del <- solve(df.dDelta) %*% fDelta
-    i=1;
+  
+    // Solve triangular packed symmetric double positive definite matrix
+    // Result is left in dfdDelta
     // http://sites.science.oregonstate.edu/~landaur/nacphy/lapack/routines/dpotrf.html
     dpptrf_("U", &km1, dfdDelta, &i); 
     if(i != 0) error("Cholesky decomposition failed, DPPTRF Info %d", i);
     dpptri_("U", &km1, dfdDelta, &i);
     if(i != 0) error("Inversion failed, DPPTRI Info %d", i);
     
-    temp=1.0;
-    temp2=0.0;
-    i=1;
+    temp=1.0;  // 1.0 * fDelta
+    temp2=0.0; // Ignore contents of del
+    i=1;       // Elements are next to each other (i.e. no comb like gaps)
+    // This is the  "%*% fDelta" piece with a triangular packed matrix
+    // Result is left in del
     //http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gab746575c4f7dd4eec72e8110d42cefe9.html#gab746575c4f7dd4eec72e8110d42cefe9
     dspmv_("U", &km1, &temp, dfdDelta, fDelta, &i, &temp2, del, &i);
     
-    // These operations are all elementwise, so one loop
+    // Modify Deltavec elementwise and find maximum absolute slope.
     maxslope = 0.0;
     if(*trace > 0) Rprintf("  del: ");
     for(i=0; i<km1; ++i)
@@ -198,7 +205,16 @@ inner   <- cfunction(
            inner_c,
            includes   = c("#include <R_ext/Lapack.h>","#include <R_ext/BLAS.h>"),
            language   = "C",
-           libargs    = "-llapack",
+  
+           # Local
+           #libargs    = "-llapack",
+           # -----
+           
+           # ACCRE
+           libargs = "-L${MKLROOT}/lib/intel64 -lmkl_rt -lpthread -lm -ldl",
+           cppargs = "-I${MKLROOT}/include",
+           # -----
+  
            convention = ".C")
 
 # Let's put an R wrapper on it that does the memory

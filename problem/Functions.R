@@ -1,14 +1,15 @@
 library(inline)
   
-##############################################################################
-##
+  ##############################################################################
+ ##
 ## Now for the C translation
 ##
 inner_c <- '
   int    km1;      // K - 1
-  int    i,j;      // i denotes row, j denotes column, 
+  int    i,j,l;    // i denotes row, j denotes column, 
   int    itr;      // Track iterations
   double temp;     // Useful double for temp storage
+  double temp2;
   double maxslope; // Finds maximum slope
   
   itr=0;
@@ -23,10 +24,10 @@ inner_c <- '
     
      if(*trace > 0) Rprintf("Iteration %d, ", itr);
     
-    // Delta.mat <- matrix(rep(Delta.vec,each=nlevels), ncol=nlevels, byrow=TRUE)
-    // hmat.num <- exp(Delta.mat+gamma.mat)
-    // hmat.denom <- 1+colSums(hmat.num)
-    // hmat <- sweep(hmat.num,2,hmat.denom,"/")
+    // Delta.mat   <- matrix(rep(Delta.vec,each=K), ncol=K, byrow=TRUE)
+    // hmat.num    <- exp(Delta.mat+gamma.mat)
+    // hmat.denom  <- 1+ colSums(hmat.num)
+    // hmat        <- sweep(hmat.num,2,hmat.denom,"/")
     for(j=0; j<(*k); ++j)  // j is the column, outer-loop due to column-wise nature
     { 
       temp = 1.0; // Denominator for column
@@ -49,46 +50,71 @@ inner_c <- '
     dgemv_("N", &km1, k, &temp, hmat, &km1, mmlag, &i, &temp, fDelta, &i);
     // Ref: http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gadd421a107a488d524859b4a64c1901a9.html#gadd421a107a488d524859b4a64c1901a9
   
-    // df.dDelta <- rep(0, nlevelsmin1)
+    // df.dDelta   <- matrix(0, K1, K1)
     // memset is a very fast shortcut that needs the number
     // of bytes to overwrite with a byte (0). 
     // IEEE754 all zero bytes is a zero for a double.
     // sizeof returns the number of bytes of a double,
-    memset(dfdDelta, 0, km1*sizeof(double));
-  
-    // hmat <- (1-hmat)*hmat 
-    for(i=0; i<km1*(*k); ++i)
-    {
-      temp    = hmat[i];      // Modification in place is not possible in C/C++
-      hmat[i] = temp*(1-temp);// if it references itself, so using temp
-    }
-  
-    //for(i in 1:nlevelsmin1)
+    memset(dfdDelta, 0, km1*km1*sizeof(double));
+    
+    // for (l in 1:K1)
+    //   df.dDelta[l,l] <- sum(hmat[l,]*(1-hmat[l,])*mm.lag)
     for(i=0; i<km1; ++i)
     {
-      //for(j in 1:nlevels)
       for(j=0; j<(*k); ++j)
       {
-        // df.dDelta[i] <- df.dDelta[i] + hmat[i,j] * mm.lag[j]
-        dfdDelta[i] += hmat[i+j*km1] * mmlag[j];
+        // Use packed "U" col major storage, 
+        // Bytes are stored using triangle number offsets
+        // https://software.intel.com/content/www/us/en/develop/documentation/mkl-developer-reference-c/top/lapack-routines/matrix-storage-schemes-for-lapack-routines.html
+        dfdDelta[i+i*(i+1)/2] += hmat[i+j*km1] * (1-hmat[i+j*km1])*mmlag[j];
       }
     }
 
-    // These operations are all elementwise, so one loop
+    // ## upper triangle for df.dDelta
+    // for (l in 1:(K1-1))
+    // {
+    //   for (m in (l+1):K1)
+    //   {
+    //     df.dDelta[l,m] <- -sum(hmat[l,]*hmat[m,]*mm.lag)
+    //   }
+    // }
+    for(i=0; i<(km1-1); ++i)   // for (l in 1:(K1-1))
+    {
+      for(j=i+1; j<km1; ++j)   //   for (m in (l+1):K1)
+      {
+        for(l=0; l<(*k); ++l)  // Elements to sum
+        {
+          dfdDelta[i+j*(j+1)/2] -= hmat[i+l*km1]*hmat[j+l*km1]*mmlag[l];
+        }
+      }
+    }
+  
+    //del <- solve(df.dDelta) %*% fDelta
+  
+    // Solve triangular packed symmetric double positive definite matrix
+    // Result is left in dfdDelta
+    // http://sites.science.oregonstate.edu/~landaur/nacphy/lapack/routines/dpotrf.html
+    dpptrf_("U", &km1, dfdDelta, &i); 
+    if(i != 0) error("Cholesky decomposition failed, DPPTRF Info %d", i);
+    dpptri_("U", &km1, dfdDelta, &i);
+    if(i != 0) error("Inversion failed, DPPTRI Info %d", i);
+    
+    temp=1.0;  // 1.0 * fDelta
+    temp2=0.0; // Ignore contents of del
+    i=1;       // Elements are next to each other (i.e. no comb like gaps)
+    // This is the  "%*% fDelta" piece with a triangular packed matrix
+    // Result is left in del
+    //http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gab746575c4f7dd4eec72e8110d42cefe9.html#gab746575c4f7dd4eec72e8110d42cefe9
+    dspmv_("U", &km1, &temp, dfdDelta, fDelta, &i, &temp2, del, &i);
+    
+    // Modify Deltavec elementwise and find maximum absolute slope.
     maxslope = 0.0;
     if(*trace > 0) Rprintf("  del: ");
     for(i=0; i<km1; ++i)
     {
-      // del <- 1/df.dDelta * fDelta
-      del[i] = 1/dfdDelta[i] * fDelta[i];
-  
       // Delta.vec  <- Delta.vec - del
       Deltavec[i] -= del[i];
-      
-      // This recreates the original
-      // if(del[i] > maxslope) maxslope = del[i];
-      
-      // This I think is the correct version
+
       if(fabs(del[i]) > maxslope) maxslope = fabs(del[i]); 
       
       if(*trace > 0) Rprintf("%le ", del[i]);
@@ -110,7 +136,7 @@ inner   <- cfunction(
     
              # These are local variables, R is allocating
              hmat     = "double",  # (k-1, k)
-             dfdDelta = "double",  # k-1
+             dfdDelta = "double",  # (k-1, k-1)
              del      = "double",  # k-1
              fDelta   = "double",  # k-1
              Deltavec = "double"   # k-1
@@ -132,7 +158,7 @@ delta_it_c <- function(mm,              # row of marginal (mean) probabilities
 {
   # Using inline all inputs are outputs, but we only want one
   inner(k, gamma.mat, mm, mm.lag, tol, maxit, trace,
-        rep(0, k*k-1), rep(0, k-1), rep(0,k-1), rep(0,k-1), rep(0, k-1))$Deltavec
+        rep(0, k*k-1), rep(0, (k-1)*(k-1)), rep(0,k-1), rep(0,k-1), rep(0, k-1))$Deltavec
 }
 
 ####################################################################################
@@ -193,7 +219,8 @@ GenDatOMTM1 <- function(id,
     #lp          <- cbind(tx,t,tx*t) %*% beta
     y <- yval <- NULL
     
-    for (i in unique(id)){
+    for (i in unique(id))
+    {
         idi <- id[id==i]       
         lpi <- lp[id==i]
         txi <- tx[id==i]
@@ -208,7 +235,8 @@ GenDatOMTM1 <- function(id,
         
         cprobi.mat <- cbind(0, expit(lpi.mat), 1) ## cumuulative prob matrix
         probi.mat  <- matrix(NA, mi, K) ## multinomial probabilities
-        for (k in 2:(K+1)){
+        for (k in 2:(K+1))
+        {
             probi.mat[,(k-1)] <- cprobi.mat[,k]-cprobi.mat[,(k-1)]
         }
         
@@ -217,22 +245,28 @@ GenDatOMTM1 <- function(id,
         
         ## Calculate Deltait across all timepoints.  
         Deltait <- NULL
-        #for (j in 1:mi){ Deltait <- rbind(Deltait, c(findDeltait(mm=probi.mat[j,], mm.lag=probi.matlag[j,], gamma.mat=gamma.mat, K=K)))}
-        for (j in 1:mi){ Deltait <- rbind(Deltait, c(delta_it_c(mm=probi.mat[j,], mm.lag=probi.matlag[j,], gamma.mat=gamma.mat0)))}
+        for (j in 1:mi)
+        { 
+          Deltait <- rbind(Deltait, c(delta_it_c(mm=probi.mat[j,], mm.lag=probi.matlag[j,], gamma.mat=gamma.mat0)))
+        }
         
         # use marginal probs to simulate Yi1
         yi <- yilag <- c(rmultinom(1,1,probi.mat[1,]))
         
         ## sim Yi2... Yimi
-        for (j in 2:mi){
-            tmp      <- exp(Deltait[j,] + c(gamma.mat0 %*% yilag))
-            tmp1     <- 1+sum(tmp)
-            prob.y.c <- c(tmp,1)/tmp1 
-            yilag    <- c(rmultinom(1,1,prob.y.c))
-            yi       <- rbind(yi, yilag)
+        for (j in 2:mi)
+        {
+          tmp      <- exp(Deltait[j,] + c(gamma.mat0 %*% yilag))
+          tmp1     <- 1+sum(tmp)
+          prob.y.c <- c(tmp,1)/tmp1 
+          yilag    <- c(rmultinom(1,1,prob.y.c))
+          yi       <- rbind(yi, yilag)
         }
         yival <- rep(10, nrow(yi))
-        for(j in 1:nrow(yi)){ yival[j] <- which(yi[j,]==1) }
+        for(j in 1:nrow(yi))
+        {
+          yival[j] <- which(yi[j,]==1)
+        }
         y    <- rbind(y, yi)
         yval <- c(yval, yival)
     }
@@ -240,14 +274,16 @@ GenDatOMTM1 <- function(id,
 }
 
 
-Calc.TransProbs <- function(Y, id, prob=T){
-    L <- length(Y)
+Calc.TransProbs <- function(Y, id, prob=T)
+{
+    L     <- length(Y)
     tmp   <- split(Y, id)
     X     <- do.call("rbind", tmp)
-    tt <- table( c(X[,-ncol(X)]), c(X[,-1]) )
+    tt    <- table( c(X[,-ncol(X)]), c(X[,-1]) )
+    
     if(prob) tt <- tt / rowSums(tt)
-    out <- list(Tx.Mtx= tt, Marg.Prob=table(Y)/L)
-    out
+    
+    list(Tx.Mtx= tt, Marg.Prob=table(Y)/L)
 }
 
 
@@ -255,21 +291,23 @@ Calc.TransProbs <- function(Y, id, prob=T){
 ####################################################################################
 ####################################################################################
 
-logLikeCalc <- function(params, yval,x, id){
-    N       <- nrow(x)
-    States  <- sort(unique(yval))
-    K       <- length(States)
-    K1      <- K-1
-    uid     <- unique(id)
-    npar    <- length(params)
-    alpha.e <- params[1:K1]
-    beta.e  <- params[(K1+1):(npar-(K1^2))]
-    gamma.e <- matrix(params[(npar+1-(K1^2)):npar], K1, K1, byrow=TRUE)
+logLikeCalc <- function(params, yval,x, id)
+{
+    N         <- nrow(x)
+    States    <- sort(unique(yval))
+    K         <- length(States)
+    K1        <- K-1
+    uid       <- unique(id)
+    npar      <- length(params)
+    alpha.e   <- params[1:K1]
+    beta.e    <- params[(K1+1):(npar-(K1^2))]
+    gamma.e   <- matrix(params[(npar+1-(K1^2)):npar], K1, K1, byrow=TRUE)
     gamma.mtx <- cbind(gamma.e, 0)
+    
     li1 <- li2 <- rep(0,N)
     print(params)
-    for (i in unique(id)){
-        
+    for (i in unique(id))
+    {
         yival <- yval[id==i]
         xi    <- x[id==i,]
         mi    <- nrow(xi)
@@ -278,24 +316,37 @@ logLikeCalc <- function(params, yval,x, id){
         logLi1  <- logLi2 <- 0
         logLij2 <- rep(0, mi)
         
-        for (k in 1:K){ ZiMat[,k] <- as.integer(yival<= States[k])
-        YiMat[,k] <- as.integer(yival== States[k])
+        for (k in 1:K)
+        { 
+          ZiMat[,k] <- as.integer(yival <= States[k])
+          YiMat[,k] <- as.integer(yival == States[k])
         }
         
-        for (k in 1:K1){cprobi.m[,k] <- expit(alpha.e[k] + xi %*% beta.e)}
+        for (k in 1:K1)
+        {
+          cprobi.m[,k] <- expit(alpha.e[k] + xi %*% beta.e)
+        }
         cprobi.m[,K] <- 1
-        probi.m[,1] <- cprobi.m[,1]
-        for (k in 2:K){probi.m[,k] <- cprobi.m[,(k)]- cprobi.m[,(k-1)]}
+        probi.m[,1]  <- cprobi.m[,1]
+            
+        for (k in 2:K)
+        {
+          probi.m[,k] <- cprobi.m[,(k)]- cprobi.m[,(k-1)]
+        }
         
         ## LogLi1 only comes from the marginal portion of the model (first observation)
-        for (k in 1:K1){ #print(cprobi.m[1,]);print(probi.m[1,])
-            logLi1 <- logLi1 +  ZiMat[1,k]    *log(cprobi.m[1,k]     / probi.m[1,(k+1)]) - 
-                ZiMat[1,(k+1)]*log(cprobi.m[1,(k+1)] / probi.m[1,(k+1)])}
+        for (k in 1:K1)
+        { 
+          #print(cprobi.m[1,]);print(probi.m[1,])
+          logLi1 <- logLi1 +  ZiMat[1,k]    *log(cprobi.m[1,k]     / probi.m[1,(k+1)]) - 
+          ZiMat[1,(k+1)]*log(cprobi.m[1,(k+1)] / probi.m[1,(k+1)])
+        }
         
         ## logLi2 comes from observations 2 to mi
         YiMat2 <- YiMat[,-K]
         
-        for (j in 2:mi){
+        for (j in 2:mi)
+        {
             #Deltaij2       <- findDeltait(mm=probi.m[j,], mm.lag=probi.m[(j-1),], gamma.mat=gamma.mtx, nlevels=K)
             Deltaij2       <- delta_it_c(mm=probi.m[j,], mm.lag=probi.m[(j-1),], gamma.mat=gamma.mtx)
             
@@ -310,8 +361,8 @@ logLikeCalc <- function(params, yval,x, id){
         li1[i] <- logLi1
         li2[i] <- sum(logLij2)
     }
-    li <- -1*(sum(li1)+sum(li2)) 
-    li
+    
+    -1*(sum(li1)+sum(li2))
 }
 
 
