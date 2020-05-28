@@ -1,6 +1,8 @@
 source("fun_delta_it_Rcpp.R")
-source("fun_ll.R")
+source("fun_loglik.R")
 source("generate_data.R")
+
+set.seed(1)
 
 N         <- 26
 mi        <- 20
@@ -8,12 +10,12 @@ id        <- rep(1:N, each=mi)
 tx        <- rep(rep(c(0,1), each=mi), N/2)
 t         <- rep(seq(0,1,length.out=mi), N)
 XMat      <- cbind(tx,t,tx*t)
-alpha     <-c(-2,-1,1)
-beta      <- c(0.25,0.5,-.25)
+alpha     <- c(-2,-1, 1)
+beta      <- c(0.25, 0.5, -.25)
 
-gamma.mat <- rbind( c(3,2,1),
-                    c(1,2,1),
-                    c(-0.5,1,2))
+gamma.mat <- rbind( c( 3,  2,  1),
+                    c( 1,  2,  1),
+                    c(-0.5,1,  2))
 params    <- c(alpha, beta, c(t(gamma.mat)))
 
 Y         <- GenDatOMTM1(id        = id,

@@ -127,6 +127,20 @@ NumericVector delta_it_cpp(
     dsptri_("U", &km1, &dfdDelta[0], &ipiv[0], &work[0], &i);
     if(i != 0) ::Rf_error("Inversion failed, DSPTRI Info %d", i);
     
+    if(trace > 1)
+    {
+      Rprintf("\n  dfd.Delta:\n");
+      for(j=0; j<km1; ++j)
+      {
+        Rprintf("    ");
+        for(i=0; i<km1; ++i)
+        {
+          Rprintf("%13.6le ", dfdDelta[i + j*km1]); 
+        }
+        Rprintf("\n");
+      }
+    }
+    
     temp=1.0;  // 1.0 * fDelta
     temp2=0.0; // Ignore contents of del
     i=1;       // Elements are next to each other (i.e. no comb like gaps)
