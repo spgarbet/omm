@@ -6,7 +6,7 @@
 
 print("Beginning Test")
 
-source("delta_it_r.R")
+source("delta_it_R.R")
 source("delta_it_c.R")
 
 load("data/delta_it-input.Rdata") # Simulation data point
@@ -24,21 +24,12 @@ if(abs(sum(reference - inlinec)) > 1e-9)
 orig.time   <- system.time(replicate(5000, delta_it_r(mm, mm.lag, gamma.mat)))
 inline.time <- system.time(replicate(5000, delta_it_c(mm, mm.lag, gamma.mat)))
 
+source("delta_it_Rcpp.R")
 
-# Rcpp interfers with inline and crashes R
-# Doing this last seems to work
-library(Rcpp)
-# For Local compile
-Sys.setenv(PKG_LIBS="-llapack")
-# For ACCRE compile
-#Sys.setenv(PKG_LIBS="-L${MKLROOT}/lib/intel64 -lmkl_rt -lpthread -lm -ldl")
-#Sys.setenv(PKG_CXXFLAGS="-I${MKLROOT}/include")
-sourceCpp("src/delta_it.cpp")
-
-rcppv     <- delta_it_cpp(mm, mm.lag, gamma.mat, length(mm.lag), 1e-4, 100, 0)
+rcppv     <- delta_it_cpp(mm, mm.lag, gamma.mat, 1e-4, 100, 0)
 if(abs(sum(reference - rcppv)) > 1e-9)
   warning("Rcpp Version Broken!")
-rcpp.time <- system.time(replicate(5000, delta_it_cpp(mm, mm.lag, gamma.mat, length(mm.lag), 1e-4, 100, 0)))
+rcpp.time <- system.time(replicate(5000, delta_it_cpp(mm, mm.lag, gamma.mat, 1e-4, 100, 0)))
 
 print("R Code")
 print(orig.time)

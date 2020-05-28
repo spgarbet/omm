@@ -9,12 +9,12 @@ NumericVector delta_it_cpp(
   NumericVector mm,
   NumericVector mmlag,
   NumericMatrix gammamat,
-  int           k,
   double        tol,
   int           maxit,
   int           trace
 )
 {
+  int    k=mm.length();
   int    km1=k-1;      // K - 1
   int    i,j,l;    // i denotes row, j denotes column, 
   int    itr;      // Track iterations
