@@ -1,5 +1,16 @@
 source("delta_it_Rcpp.R")
-a
+source("generate_data.R")
+source("ll.R")
+
+N         <- 26
+mi        <- 20
+id        <- rep(1:N, each=mi)
+tx        <- rep(rep(c(0,1), each=mi), N/2)
+t         <- rep(seq(0,1,length.out=mi), N)
+XMat      <- cbind(tx,t,tx*t)
+alpha     <-c(-2,-1,1)
+beta      <- c(0.25,0.5,-.25)
+
 gamma.mat <- rbind( c(3,2,1),
                     c(1,2,1),
                     c(-0.5,1,2))
@@ -22,4 +33,4 @@ print(system.time(nlm(logLikeCalc, params,  yval=Y, x=XMat, id=id, stepmax=.1, i
 
 ### logLikeCalc3 uses the gradient
 
-print(system.time(nlm(logLikeCalc3, params,  yval=Y, x=XMat, id=id, stepmax=.1, iterlim=250, check.analyticals = TRUE, print.level=0, hessian=TRUE)))
+print(system.time(nlm(logLikeCalcWithGrad, params,  yval=Y, x=XMat, id=id, stepmax=.1, iterlim=250, check.analyticals = TRUE, print.level=0, hessian=TRUE)))
