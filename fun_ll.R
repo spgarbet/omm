@@ -4,58 +4,61 @@
 ####################################################################################
 ####################################################################################
 
-logLikeCalc <- function(params, yval,x, id){
-    
-    States  <- sort(unique(yval))
-    K       <- length(States)
-    K1      <- K-1
-    uid     <- unique(id)
-    N       <- length(uid)
-    npar    <- length(params)
-    alpha.e <- params[1:K1]
-    beta.e  <- params[(K1+1):(npar-(K1^2))]
-    gamma.e <- matrix(params[(npar+1-(K1^2)):npar], K1, K1, byrow=TRUE)
+logLikeCalc <- function(params, yval, x, id)
+{
+    States    <- sort(unique(yval))
+    K         <- length(States)
+    K1        <- K-1
+    uid       <- unique(id)
+    N         <- length(uid)
+    npar      <- length(params)
+    alpha.e   <- params[1:K1]
+    beta.e    <- params[(K1+1):(npar-(K1^2))]
+    gamma.e   <- matrix(params[(npar+1-(K1^2)):npar], K1, K1, byrow=TRUE)
     gamma.mtx <- cbind(gamma.e, 0)
+    
     li1 <- li2 <- rep(0,N)
     #print(params)
-    for (i in unique(id)){
-        
-        yival <- yval[id==i]
-        xi    <- x[id==i,]
-        mi    <- nrow(xi)
+    for (i in unique(id))
+    {
+        yival   <- yval[id==i]
+        xi      <- x[id==i,]
+        mi      <- nrow(xi)
         
         ZiMat   <- YiMat <- cprobi.m <- probi.m <- matrix(NA, mi, K)
         logLi1  <- logLi2 <- 0
         logLij2 <- rep(0, mi)
         
-        for (k in 1:K){ ZiMat[,k] <- as.integer(yival<= States[k])
-        YiMat[,k] <- as.integer(yival== States[k])
+        for (k in 1:K)
+        {
+          ZiMat[,k] <- as.integer(yival<= States[k])
+          YiMat[,k] <- as.integer(yival== States[k])
         }
         
-        for (k in 1:K1){cprobi.m[,k] <- expit(alpha.e[k] + xi %*% beta.e)}
+        for (k in 1:K1) cprobi.m[,k] <- expit(alpha.e[k] + xi %*% beta.e)
+        
         cprobi.m[,K] <- 1
-        probi.m[,1] <- cprobi.m[,1]
-        for (k in 2:K){probi.m[,k] <- cprobi.m[,(k)]- cprobi.m[,(k-1)]}
+        probi.m[,1]  <- cprobi.m[,1]
+        for (k in 2:K)  probi.m[,k] <- cprobi.m[,(k)]- cprobi.m[,(k-1)]
         
         ## LogLi1 only comes from the marginal portion of the model (first observation)
-        for (k in 1:K1){ #print(cprobi.m[1,]);print(probi.m[1,])
-            logLi1 <- logLi1 +  ZiMat[1,k]    *log(cprobi.m[1,k]     / probi.m[1,(k+1)]) - 
-                ZiMat[1,(k+1)]*log(cprobi.m[1,(k+1)] / probi.m[1,(k+1)])}
+        for (k in 1:K1)
+        {
+          #print(cprobi.m[1,]);print(probi.m[1,])
+          logLi1 <- logLi1 +  
+                    ZiMat[1,k]*log(cprobi.m[1,k] / probi.m[1,(k+1)]) - 
+                    ZiMat[1,(k+1)]*log(cprobi.m[1,(k+1)] / probi.m[1,(k+1)])
+        }
         
         ## logLi2 comes from observations 2 to mi
         YiMat2 <- YiMat[,-K]
         
-        for (j in 2:mi){
-            #Deltaij2       <- findDeltait(mm=probi.m[j,], mm.lag=probi.m[(j-1),], gamma.mat=gamma.mtx, K=K)
+        for (j in 2:mi)
+        {
             Deltaij2       <- delta_it(mm=probi.m[j,], mm.lag=probi.m[(j-1),], gamma.mat=gamma.mtx)
-            
-            #lpij.c         <- Deltaij2 + t(gamma.e) %*% YiMat2[(j-1),]
             lpij.c         <- Deltaij2 + gamma.mtx[,yival[(j-1)]] #%*% YiMat2[(j-1),]
-            
             probij.cK      <- 1/(1+sum(exp(lpij.c)))
-            logLij2[j] <- YiMat2[j,] %*% lpij.c + log(probij.cK)
-            #logLij2[j]     <- lpij.c[yival[j]] + log(probij.cK)
-            
+            logLij2[j]     <- YiMat2[j,] %*% lpij.c + log(probij.cK)
         }
         li1[i] <- logLi1
         li2[i] <- sum(logLij2)
@@ -129,26 +132,29 @@ logLikeCalcWithGrad <- function(params, yval,x, id)
     beta.e    <- params[(K1+1):(npar-(K1^2))]
     gamma.e   <- matrix(params[(npar+1-(K1^2)):npar], K1, K1, byrow=TRUE)
     gamma.mtx <- cbind(gamma.e, 0)
-    
     alpha.len <- K1
     beta.len  <- length(beta.e)
     gamma.len <- K1^2
     
     ## Z and Y matrices
     ZMat <- YMat <- matrix(0, Ntot, K)
-    for (k in 1:K){ YMat[,k] <- ifelse(yval==k, 1, 0)
-    ZMat[,k] <- ifelse(yval<=k, 1, 0)
+    for (k in 1:K)
+    { 
+      YMat[,k] <- ifelse(yval==k, 1, 0)
+      ZMat[,k] <- ifelse(yval<=k, 1, 0)
     }
     
     ## marginal cumulative probs and state probs
     cprob.m <- prob.m <- matrix(NA, Ntot, K)
-    for (k in 1:K1){
-        cprob.m[,k] <- expit(alpha.e[k] + x %*% beta.e)
+    for (k in 1:K1)
+    {
+      cprob.m[,k] <- expit(alpha.e[k] + x %*% beta.e)
     }
     cprob.m[,K] <- 1
     prob.m[,1]  <- cprob.m[,1]
-    for (k in 2:K){
-        prob.m[,k] <- cprob.m[,(k)]- cprob.m[,(k-1)]
+    for (k in 2:K)
+    {
+      prob.m[,k] <- cprob.m[,(k)]- cprob.m[,(k-1)]
     }
     one.min.cprob.m <- 1-cprob.m
     one.min.prob.m  <- 1-prob.m

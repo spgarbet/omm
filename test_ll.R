@@ -1,6 +1,6 @@
-source("delta_it_Rcpp.R")
+source("fun_delta_it_Rcpp.R")
+source("fun_ll.R")
 source("generate_data.R")
-source("ll.R")
 
 N         <- 26
 mi        <- 20
@@ -25,12 +25,6 @@ Y         <- GenDatOMTM1(id        = id,
    
 print("Generated Data")
 
-#mod  <- optim( params, logLikeCalc, yval=Y, x=XMat, id=id, control=list(trace=0, maxit=10000), hessian=TRUE)
-
-### logLikeCalc does not use the gradient
-
 print(system.time(nlm(logLikeCalc, params,  yval=Y, x=XMat, id=id, stepmax=.1, iterlim=250, check.analyticals = TRUE, print.level=0, hessian=TRUE)))
-
-### logLikeCalc3 uses the gradient
 
 print(system.time(nlm(logLikeCalcWithGrad, params,  yval=Y, x=XMat, id=id, stepmax=.1, iterlim=250, check.analyticals = TRUE, print.level=0, hessian=TRUE)))

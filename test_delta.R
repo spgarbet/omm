@@ -6,8 +6,8 @@
 
 print("Beginning Test")
 
-source("delta_it_R.R")
-source("delta_it_c.R")
+source("fun_delta_it_R.R")
+source("fun_delta_it_c.R")
 
 load("data/delta_it-input.Rdata") # Simulation data point
 
@@ -24,7 +24,7 @@ if(abs(sum(reference - inlinec)) > 1e-9)
 orig.time   <- system.time(replicate(5000, delta_it_r(mm, mm.lag, gamma.mat)))
 inline.time <- system.time(replicate(5000, delta_it_c(mm, mm.lag, gamma.mat)))
 
-source("delta_it_Rcpp.R")
+source("fun_delta_it_Rcpp.R")
 
 rcppv     <- delta_it_cpp(mm, mm.lag, gamma.mat, 1e-4, 100, 0)
 if(abs(sum(reference - rcppv)) > 1e-9)
