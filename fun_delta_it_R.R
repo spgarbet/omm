@@ -1,9 +1,10 @@
 
 # Uncomment to test random gammas
 delta_it_r <- function(mm,            # row of marginal (mean) probabilities of each response category k=1...K 
-                     mm.lag,        # lagged value of mm
-                     gamma.mat,     # Transition log odds ratios
-                     K=length(mm))   # K
+                       mm.lag,        # lagged value of mm
+                       gamma.mat,     # Transition log odds ratios
+                       K=length(mm),
+                       ...)           # K
 {
     K1          <- K-1
     mm          <- mm[-K]
@@ -38,3 +39,5 @@ delta_it_r <- function(mm,            # row of marginal (mean) probabilities of 
     }
     Delta.vec
 }
+
+delta_it <- delta_it_r
