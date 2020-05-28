@@ -6,9 +6,9 @@ using namespace Rcpp;
 
 // [[Rcpp::export()]]
 NumericVector delta_it_cpp(
-  NumericVector mm,
-  NumericVector mmlag,
-  NumericMatrix gammamat,
+  NumericVector mm,       // k
+  NumericVector mmlag,    // k
+  NumericMatrix gammamat, // (k-1, k)
   double        tol,
   int           maxit,
   int           trace
@@ -16,11 +16,11 @@ NumericVector delta_it_cpp(
 {
   int    k=mm.length();
   int    km1=k-1;      // K - 1
-  int    i,j,l;    // i denotes row, j denotes column, 
-  int    itr;      // Track iterations
-  double temp;     // Useful double for temp storage
+  int    i,j,l;        // i denotes row, j denotes column, 
+  int    itr;          // Track iterations
+  double temp;
   double temp2;
-  double maxslope; // Finds maximum slope
+  double maxslope;     // Finds maximum slope
   
   NumericMatrix hmat(km1, k);
   NumericMatrix dfdDelta(km1, km1);
@@ -30,9 +30,22 @@ NumericVector delta_it_cpp(
   IntegerVector ipiv(km1);
   NumericMatrix work(km1, km1);
   
+  // Double check assumptions about size
+  if(mm.length() != mmlag.length())
+  {
+    ::Rf_error("mm[%d] != mm.lag[%d]\n", mm.length(), mmlag.length());
+  }
+  if(gammamat.nrow() != km1)
+  {
+    ::Rf_error("gamma[%d, %d] rows != k-1\n", gammamat.nrow(), gammamat.ncol());
+  }
+  if(gammamat.ncol() != k)
+  {
+    ::Rf_error("gamma[%d, %d] cols != k\n", gammamat.nrow(), gammamat.ncol());
+  }
+  
   itr=0;
   maxslope=tol+0.1; // Make sure first iteration happens
-
                 
   while(maxslope > tol)
   {
@@ -71,7 +84,7 @@ NumericVector delta_it_cpp(
     // of bytes to overwrite with a byte (0). 
     // IEEE754 all zero bytes is a zero for a double.
     // sizeof returns the number of bytes of a double,
-    memset(dfdDelta, 0, km1*km1*sizeof(double));
+    memset(&dfdDelta[0], 0, km1*km1*sizeof(double));
     
     // for (l in 1:K1)
     //   df.dDelta[l,l] <- sum(hmat[l,]*(1-hmat[l,])*mm.lag)
@@ -125,6 +138,7 @@ NumericVector delta_it_cpp(
     // Modify Deltavec elementwise and find maximum absolute slope.
     maxslope = 0.0;
     if(trace > 0) Rprintf("  del: ");
+
     for(i=0; i<km1; ++i)
     {
       // Delta.vec  <- Delta.vec - del
@@ -134,7 +148,7 @@ NumericVector delta_it_cpp(
       
       if(trace > 0) Rprintf("%le ", del[i]);
     }
-    if(trace > 0) Rprintf("\\n");
+    if(trace > 0) Rprintf("\n");
 
   }
   

@@ -1,9 +1,0 @@
-Needs
-
-* Math Functions (Same interface)
-  * R functions 
-  * C functions
-
-* Simulate Data 
-
-* Test R and C

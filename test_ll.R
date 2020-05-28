@@ -1,15 +1,5 @@
-source("Functions.R")
-
-
-
-N         <- 25
-mi        <- 20
-id        <- rep(1:N, each=mi)
-tx        <- rep(rep(c(0,1), each=mi), N/2)
-t         <- rep(seq(0,1,length.out=mi), N)
-XMat      <- cbind(tx,t,tx*t)
-alpha     <-c(-2,-1,1)
-beta      <- c(0.25,0.5,-.25)
+source("delta_it_Rcpp.R")
+a
 gamma.mat <- rbind( c(3,2,1),
                     c(1,2,1),
                     c(-0.5,1,2))
