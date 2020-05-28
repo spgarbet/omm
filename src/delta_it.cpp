@@ -28,7 +28,7 @@ NumericVector delta_it_cpp(
   NumericVector fDelta(km1);
   NumericVector Deltavec(km1);
   IntegerVector ipiv(km1);
-  NumericVector work(km1, km1);
+  NumericMatrix work(km1, km1);
   
   itr=0;
   maxslope=tol+0.1; // Make sure first iteration happens

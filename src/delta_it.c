@@ -86,7 +86,6 @@
     }
   
     //del <- solve(df.dDelta) %*% fDelta
-    
     // Solve inverse of real symmetric indefinite matrix in packed storage
     // https://www.math.utah.edu/software/lapack/lapack-d/dsptrf.html
     dsptrf_("U", &km1, dfdDelta, ipiv, &i);
