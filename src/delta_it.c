@@ -86,14 +86,14 @@
     }
   
     //del <- solve(df.dDelta) %*% fDelta
-  
-    // Solve triangular packed symmetric double positive definite matrix
-    // Result is left in dfdDelta
-    // http://sites.science.oregonstate.edu/~landaur/nacphy/lapack/routines/dpotrf.html
-    dpptrf_("U", &km1, dfdDelta, &i); 
-    if(i != 0) error("Cholesky decomposition failed, DPPTRF Info %d", i);
-    dpptri_("U", &km1, dfdDelta, &i);
-    if(i != 0) error("Inversion failed, DPPTRI Info %d", i);
+    
+    // Solve inverse of real symmetric indefinite matrix in packed storage
+    // https://www.math.utah.edu/software/lapack/lapack-d/dsptrf.html
+    dsptrf_("U", &km1, dfdDelta, ipiv, &i);
+    if(i != 0) error("Bunch-Kaufman factorization failed: info %d", i);
+    // https://www.math.utah.edu/software/lapack/lapack-d/dsptri.html
+    dsptri_("U", &km1, dfdDelta, ipiv, work, &i);
+    if(i != 0) error("Inversion failed, DSPTRI Info %d", i);
     
     temp=1.0;  // 1.0 * fDelta
     temp2=0.0; // Ignore contents of del

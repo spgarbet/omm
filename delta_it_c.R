@@ -17,7 +17,9 @@ inner   <- cfunction(
              dfdDelta = "double",  # (k-1, k-1)
              del      = "double",  # k-1
              fDelta   = "double",  # k-1
-             Deltavec = "double"   # k-1
+             Deltavec = "double",  # k-1
+             ipiv     = "integer", # k-1
+             work     = "double"   # (k-1, k-1)
            ),
            inner_c,
            includes   = c("#include <R_ext/Lapack.h>","#include <R_ext/BLAS.h>"),
@@ -46,5 +48,5 @@ delta_it_c <- function(mm,              # row of marginal (mean) probabilities
 {
   # Using inline all inputs are outputs, but we only want one
   inner(k, gamma.mat, mm, mm.lag, tol, maxit, trace,
-        rep(0, k*(k-1)), rep(0, (k-1)*(k-1)), rep(0,k-1), rep(0,k-1), rep(0, k-1))$Deltavec
+        rep(0, k*(k-1)), rep(0, (k-1)*(k-1)), rep(0,k-1), rep(0,k-1), rep(0, k-1), rep(0, k-1), rep(0, (k-1)*(k-1)))$Deltavec
 }

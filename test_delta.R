@@ -3,8 +3,6 @@
 #   This file will explore the differences between
 #   implementations of delta_it in R, Rcpp, and inline C.
 #
-if(exists("run")) error("Inline and Rcpp are unstable together. Running this file again will crash R.\nPlease restart your session.")
-run <- 1
 
 print("Beginning Test")
 

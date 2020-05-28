@@ -15,25 +15,25 @@ NumericVector delta_it_cpp(
   int           trace
 )
 {
-  int    km1;      // K - 1
+  int    km1=k-1;      // K - 1
   int    i,j,l;    // i denotes row, j denotes column, 
   int    itr;      // Track iterations
   double temp;     // Useful double for temp storage
   double temp2;
   double maxslope; // Finds maximum slope
   
-  NumericMatrix hmat(k-1, k);
-  NumericMatrix dfdDelta(k-1, k-1);
-  NumericVector del(k-1);
-  NumericVector fDelta(k-1);
-  NumericVector Deltavec(k-1);
+  NumericMatrix hmat(km1, k);
+  NumericMatrix dfdDelta(km1, km1);
+  NumericVector del(km1);
+  NumericVector fDelta(km1);
+  NumericVector Deltavec(km1);
+  IntegerVector ipiv(km1);
+  NumericVector work(km1, km1);
   
   itr=0;
   maxslope=tol+0.1; // Make sure first iteration happens
-  
-  km1 = k - 1; // Inline has all inputs as pointers to memory
-                // *k accesses the value at that pointer
-                // Unfortunately this makes "*" context dependent in C/C++
+
+                
   while(maxslope > tol)
   {
     if(++itr > maxit) ::Rf_error("Maximum Iterations Exceeded");
@@ -106,14 +106,13 @@ NumericVector delta_it_cpp(
     }
   
     //del <- solve(df.dDelta) %*% fDelta
-  
-    // Solve triangular packed symmetric double positive definite matrix
-    // Result is left in dfdDelta
-    // http://sites.science.oregonstate.edu/~landaur/nacphy/lapack/routines/dpotrf.html
-    dpptrf_("U", &km1, &dfdDelta[0], &i);
-    if(i != 0) ::Rf_error("Cholesky decomposition failed, DPPTRF Info %d", i);
-    dpptri_("U", &km1, &dfdDelta[0], &i);
-    if(i != 0) ::Rf_error("Inversion failed, DPPTRI Info %d", i);
+    // Solve inverse of real symmetric indefinite matrix in packed storage
+    // https://www.math.utah.edu/software/lapack/lapack-d/dsptrf.html
+    dsptrf_("U", &km1, &dfdDelta[0], &ipiv[0], &i);
+    if(i != 0) ::Rf_error("Bunch-Kaufman factorization failed: info %d", i);
+    // https://www.math.utah.edu/software/lapack/lapack-d/dsptri.html
+    dsptri_("U", &km1, &dfdDelta[0], &ipiv[0], &work[0], &i);
+    if(i != 0) ::Rf_error("Inversion failed, DSPTRI Info %d", i);
     
     temp=1.0;  // 1.0 * fDelta
     temp2=0.0; // Ignore contents of del
