@@ -1,3 +1,6 @@
 *.Rproj
 .Rproj.*
 .Rproj.user
+__MACOSX
+.Rhistory
+.DS_Store
