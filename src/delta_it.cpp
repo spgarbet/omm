@@ -6,9 +6,9 @@ using namespace Rcpp;
 
 // In place hmat calculation, not exported to R
 void hmat_calc(
-  NumericMatrix hmat,      // (k-1, k)
-  NumericVector Deltavec,  // k-1
-  NumericMatrix gammamat   // (k-1, k)
+  NumericMatrix hmat,      // (k-1, k)  OUT
+  NumericVector Deltavec,  // k-1       IN
+  NumericMatrix gammamat   // (k-1, k)  IN
 )
 {
   int    km1=Deltavec.length();
@@ -52,12 +52,12 @@ NumericMatrix hmat_calc_rcpp(// (k-1, k)
 }
 
 void dfd_delta_calc(
-  NumericMatrix dfdDelta, // (k-1, k-1)
-  NumericMatrix hmat,     // (k-1, k)
-  NumericVector fDelta,   // k-1
-  NumericVector mm,       // k
-  NumericVector mmlag,    // k
-  int           trace 
+  NumericMatrix df_dDelta, // (k-1, k-1)  OUT
+  NumericMatrix hmat,      // (k-1, k)    IN
+  NumericVector fDelta,    // k-1         IN
+  NumericVector mm,        // k           IN
+  NumericVector mmlag,     // k           IN
+  int           trace      //             IN
 )
 {
   int           k   = hmat.ncol();
@@ -74,7 +74,7 @@ void dfd_delta_calc(
   // of bytes to overwrite with a byte (0). 
   // IEEE754 all zero bytes is a zero for a double.
   // sizeof returns the number of bytes of a double,
-  memset(&dfdDelta[0], 0, km1*km1*sizeof(double));
+  memset(&df_dDelta[0], 0, km1*km1*sizeof(double));
   
   // for (l in 1:K1)
   //   df.dDelta[l,l] <- sum(hmat[l,]*(1-hmat[l,])*mm.lag)
@@ -85,7 +85,7 @@ void dfd_delta_calc(
       // Use packed "U" col major storage, 
       // Bytes are stored using triangle number offsets
       // https://software.intel.com/content/www/us/en/develop/documentation/mkl-developer-reference-c/top/lapack-routines/matrix-storage-schemes-for-lapack-routines.html
-      dfdDelta[row+row*(row+1)/2] += hmat[row+col*km1] * (1-hmat[row+col*km1])*mmlag[col];
+      df_dDelta[row+row*(row+1)/2] += hmat[row+col*km1] * (1-hmat[row+col*km1])*mmlag[col];
     }
   }
 
@@ -103,7 +103,7 @@ void dfd_delta_calc(
     {
       for(i=0; i<k; ++i)  // Elements to sum
       {
-        dfdDelta[row+col*(col+1)/2] -= hmat[row+i*km1]*hmat[col+i*km1]*mmlag[i];
+        df_dDelta[row+col*(col+1)/2] -= hmat[row+i*km1]*hmat[col+i*km1]*mmlag[i];
       }
     }
   }
@@ -111,11 +111,11 @@ void dfd_delta_calc(
   //del <- solve(df.dDelta) %*% fDelta
   // Solve inverse of real symmetric indefinite matrix in packed storage
   // https://www.math.utah.edu/software/lapack/lapack-d/dsptrf.html
-  dsptrf_("U", &km1, &dfdDelta[0], &ipiv[0], &i);
-  if(i != 0) ::Rf_error("Bunch-Kaufman factorization failed: info %d", i);
+  dsptrf_("U", &km1, &df_dDelta[0], &ipiv[0], &i);
+  if(i != 0) Rcpp::stop("Bunch-Kaufman factorization failed: info %d", i);
   // https://www.math.utah.edu/software/lapack/lapack-d/dsptri.html
-  dsptri_("U", &km1, &dfdDelta[0], &ipiv[0], &work[0], &i);
-  if(i != 0) ::Rf_error("Inversion failed, DSPTRI Info %d", i);
+  dsptri_("U", &km1, &df_dDelta[0], &ipiv[0], &work[0], &i);
+  if(i != 0) Rcpp::stop("Inversion failed, DSPTRI Info %d", i);
   
   if(trace > 1)
   {
@@ -125,7 +125,7 @@ void dfd_delta_calc(
       Rprintf("    ");
       for(row=0; row<km1; ++row)
       {
-        Rprintf("%13.6le ", dfdDelta[row + col*km1]); 
+        Rprintf("%13.6le ", df_dDelta[row + col*km1]); 
       }
       Rprintf("\n");
     }
@@ -144,29 +144,26 @@ NumericVector delta_it_cpp(
 {
   int    k=mm.length();
   int    km1=k-1;      // K - 1
-  int    i;            // i denotes row, j denotes column, 
+  int    i;           
+  int    row, col;
   int    itr;          // Track iterations
   double one=1.0;
   double zero=0.0;
   double maxslope;     // Finds maximum slope
   
   NumericMatrix hmat(km1, k);
-  NumericMatrix dfdDelta(km1, km1);
+  NumericMatrix df_dDelta(km1, km1);
   NumericVector del(km1);
   NumericVector fDelta(km1);
   NumericVector Deltavec(km1);
   
   // Double check assumptions about size
   if(mm.length() != mmlag.length())
-  {
-    Rcpp::stop("mm size] != mm.lag size\n");
-  }
+    Rcpp::stop("mm size != mm.lag size\n");
   if(gammamat.nrow() != km1)
-  {
-    Rcpp::stop("gamma rows incorrect size\n", gammamat.nrow(), gammamat.ncol());
-  }
+    Rcpp::stop("gamma rows incorrect size compared with mm\n");
   if(gammamat.ncol() != k)
-    Rcpp::stop("gamma columns incorrect size\n");
+    Rcpp::stop("gamma columns incorrect size compared with mm\n");
   
   itr=0;
   maxslope=tol+0.1; // Make sure first iteration happens
@@ -177,6 +174,7 @@ NumericVector delta_it_cpp(
     
     if(trace > 0) Rprintf("Iteration %d, ", itr);
 
+    // hmat [OUT], Deltavec[IN], gammamat[IN]
     hmat_calc(hmat, Deltavec, gammamat);
         
     // fDelta <- hmat %*% mm.lag - mm
@@ -185,14 +183,15 @@ NumericVector delta_it_cpp(
     dgemv_("N", &km1, &k, &one, &hmat[0], &km1, &mmlag[0], &i, &one, &fDelta[0], &i);
     // Ref: http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gadd421a107a488d524859b4a64c1901a9.html#gadd421a107a488d524859b4a64c1901a9
   
-    dfd_delta_calc(dfdDelta, hmat, fDelta, mm, mmlag, trace);
+    // df_dDelta [OUT], hmat [IN], fDelta [IN], mm [IN], mmlag[IN], trace[IN]
+    dfd_delta_calc(df_dDelta, hmat, fDelta, mm, mmlag, trace);
     
     // fDelta <- hmat %*% mm.lag - mm
     i=1;       // Elements are next to each other (i.e. no comb like gaps)
     // This is the  "%*% fDelta" piece with a triangular packed matrix
     // Result is left in del
     //http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gab746575c4f7dd4eec72e8110d42cefe9.html#gab746575c4f7dd4eec72e8110d42cefe9
-    dspmv_("U", &km1, &one, &dfdDelta[0], &fDelta[0], &i, &zero, &del[0], &i);
+    dspmv_("U", &km1, &one, &df_dDelta[0], &fDelta[0], &i, &zero, &del[0], &i);
     
     // Modify Deltavec elementwise and find maximum absolute slope.
     maxslope = 0.0;
@@ -212,7 +211,24 @@ NumericVector delta_it_cpp(
   }
   
   Deltavec.attr("hmat")      = hmat;
-  Deltavec.attr("dfd.Delta") = dfdDelta;
+  
+  // Unpack df_dDelta from Triangular Upper Packed to Full Symmetric (why no dtpttr?)
+  for(col=km1-1; col >= 0; --col)
+  {
+    for(row=km1-1; row >= 0; --row)
+    {
+      df_dDelta[row+col*km1] = df_dDelta[row+col*(col+1)/2];
+    }
+  }
+  for(col=0; col < (km1-1); ++col)
+  {
+    for(row=col+1; row < km1; ++row)
+    {
+      df_dDelta[row+col*km1] = df_dDelta[col+row*km1];
+    }
+  }
+
+  Deltavec.attr("df.dDelta") = df_dDelta;
   return(Deltavec);
 }
 
