@@ -49,8 +49,10 @@ GenDatOMTM1 <- function(id,
                         XMat, #### design matrix that should NNOT include any intercepts
                         alpha, 
                         beta, 
-                        gamma.mat){
-    
+                        gamma.mat,
+                        tx,
+                        t)
+{
     lp        <- XMat %*% beta
     gamma.mat0 <- cbind(gamma.mat, 0)
     K1        <- length(alpha)

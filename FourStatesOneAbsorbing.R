@@ -1,3 +1,4 @@
+library(Rcpp)
 
 source("hmat_calc_Rcpp.R")
 source("dfdDelta_calc_Rcpp.R")
@@ -37,7 +38,9 @@ for (i in 1:5){ print(c(i, date()))
                                XMat=XMat, 
                                alpha=alpha, 
                                beta=beta, 
-                               gamma.mat=gamma.mat)
+                               gamma.mat=gamma.mat,
+                               tx=tx,
+                               t=t)
     
     L    <- length(Y)
     dup  <- duplicated(id)
