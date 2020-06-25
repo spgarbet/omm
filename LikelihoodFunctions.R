@@ -32,6 +32,8 @@ findDeltait <- function(mm,       # row of marginal (mean) probabilities of each
         del <- solve(df.dDelta) %*% fDelta
         Delta.vec  <- Delta.vec - del
     }
+    
+    attr(Delta.vec, "df.dDelta") <- df.dDelta
     Delta.vec
 }
 

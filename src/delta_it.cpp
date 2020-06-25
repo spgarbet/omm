@@ -56,7 +56,7 @@ void dfd_delta_calc(
   NumericMatrix hmat,      // (k-1, k)    IN
   NumericVector fDelta,    // k-1         IN
   NumericVector mm,        // k           IN
-  NumericVector mmlag,     // k           IN
+  NumericVector mm_lag,    // k           IN
   int           trace      //             IN
 )
 {
@@ -85,7 +85,7 @@ void dfd_delta_calc(
       // Use packed "U" col major storage, 
       // Bytes are stored using triangle number offsets
       // https://software.intel.com/content/www/us/en/develop/documentation/mkl-developer-reference-c/top/lapack-routines/matrix-storage-schemes-for-lapack-routines.html
-      df_dDelta[row+row*(row+1)/2] += hmat[row+col*km1] * (1-hmat[row+col*km1])*mmlag[col];
+      df_dDelta[row+row*(row+1)/2] += hmat[row+col*km1] * (1-hmat[row+col*km1])*mm_lag[col];
     }
   }
 
@@ -103,7 +103,7 @@ void dfd_delta_calc(
     {
       for(i=0; i<k; ++i)  // Elements to sum
       {
-        df_dDelta[row+col*(col+1)/2] -= hmat[row+i*km1]*hmat[col+i*km1]*mmlag[i];
+        df_dDelta[row+col*(col+1)/2] -= hmat[row+i*km1]*hmat[col+i*km1]*mm_lag[i];
       }
     }
   }
@@ -135,7 +135,7 @@ void dfd_delta_calc(
 // [[Rcpp::export()]]
 NumericVector delta_it_cpp(
   NumericVector mm,       // k
-  NumericVector mmlag,    // k
+  NumericVector mm_lag,   // k
   NumericMatrix gammamat, // (k-1, k)
   double        tol,
   int           maxit,
@@ -158,7 +158,7 @@ NumericVector delta_it_cpp(
   NumericVector Deltavec(km1);
   
   // Double check assumptions about size
-  if(mm.length() != mmlag.length())
+  if(mm.length() != mm_lag.length())
     Rcpp::stop("mm size != mm.lag size\n");
   if(gammamat.nrow() != km1)
     Rcpp::stop("gamma rows incorrect size compared with mm\n");
@@ -180,11 +180,11 @@ NumericVector delta_it_cpp(
     // fDelta <- hmat %*% mm.lag - mm
     for(i=0; i<km1; ++i) fDelta[i] = -mm[i]; // BLAS will modify this vector
     i    = 1;   // Each entry in vector is one apart, BLAS allows arbitrary spacing
-    dgemv_("N", &km1, &k, &one, &hmat[0], &km1, &mmlag[0], &i, &one, &fDelta[0], &i);
+    dgemv_("N", &km1, &k, &one, &hmat[0], &km1, &mm_lag[0], &i, &one, &fDelta[0], &i);
     // Ref: http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gadd421a107a488d524859b4a64c1901a9.html#gadd421a107a488d524859b4a64c1901a9
   
-    // df_dDelta [OUT], hmat [IN], fDelta [IN], mm [IN], mmlag[IN], trace[IN]
-    dfd_delta_calc(df_dDelta, hmat, fDelta, mm, mmlag, trace);
+    // df_dDelta [OUT], hmat [IN], fDelta [IN], mm [IN], mm_lag[IN], trace[IN]
+    dfd_delta_calc(df_dDelta, hmat, fDelta, mm, mm_lag, trace);
     
     // fDelta <- hmat %*% mm.lag - mm
     i=1;       // Elements are next to each other (i.e. no comb like gaps)
