@@ -5,10 +5,11 @@
 using namespace Rcpp;
 
 // [[Rcpp::export()]]
-NumericVector delta_it_cpp(
+NumericVector Delta_calcWith0TxProbs_cpp(
   NumericVector mm,       // k
   NumericVector mmlag,    // k
   NumericMatrix gammamat, // (k-1, k)
+  NumericMatrix CalcTxMtx, // (k-1, k)
   double        tol,
   int           maxit,
   int           trace
@@ -66,7 +67,7 @@ NumericVector delta_it_cpp(
         // vector sequential in memory.
         // i.e., all matrices appear as as.vector(matrix) in memory
         // location = row + col*nrow 
-        hmat[i+j*km1] = exp(Deltavec[i]+gammamat[i+j*km1]);
+        hmat[i+j*km1] = CalcTxMtx[i+j*km1]*exp(Deltavec[i]+gammamat[i+j*km1]);
         temp += hmat[i+j*km1];
       }
       for(i=0; i<km1; ++i) hmat[i+j*km1] /= temp;
@@ -126,20 +127,6 @@ NumericVector delta_it_cpp(
     // https://www.math.utah.edu/software/lapack/lapack-d/dsptri.html
     dsptri_("U", &km1, &dfdDelta[0], &ipiv[0], &work[0], &i);
     if(i != 0) ::Rf_error("Inversion failed, DSPTRI Info %d", i);
-    
-    if(trace > 1)
-    {
-      Rprintf("\n  dfd.Delta:\n");
-      for(j=0; j<km1; ++j)
-      {
-        Rprintf("    ");
-        for(i=0; i<km1; ++i)
-        {
-          Rprintf("%13.6le ", dfdDelta[i + j*km1]); 
-        }
-        Rprintf("\n");
-      }
-    }
     
     temp=1.0;  // 1.0 * fDelta
     temp2=0.0; // Ignore contents of del

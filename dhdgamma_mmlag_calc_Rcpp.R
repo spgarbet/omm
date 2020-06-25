@@ -7,7 +7,7 @@ Sys.setenv(PKG_LIBS="-llapack")
 #Sys.setenv(PKG_LIBS="-L${MKLROOT}/lib/intel64 -lmkl_rt -lpthread -lm -ldl")
 #Sys.setenv(PKG_CXXFLAGS="-I${MKLROOT}/include")
 
-sourceCpp("~/rsch/Git/omm-master/src/dpidtheta_calc.cpp")
+sourceCpp("~/rsch/Git/omm-master/src/dhd_gamma_calc.cpp")
 
-dpidtheta_calc <- function(deta.k.dtheta, dpi.deta)
-  dpidtheta_calc_cpp(deta.k.dtheta, dpi.deta) 
+dhdgamma_mmlag_calc <- function(hmat, mm.lag, tmp.mat)
+    dhd_gamma_calc(hmat, mm.lag, tmp.mat) 

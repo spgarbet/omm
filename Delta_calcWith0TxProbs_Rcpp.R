@@ -7,7 +7,7 @@ Sys.setenv(PKG_LIBS="-llapack")
 #Sys.setenv(PKG_LIBS="-L${MKLROOT}/lib/intel64 -lmkl_rt -lpthread -lm -ldl")
 #Sys.setenv(PKG_CXXFLAGS="-I${MKLROOT}/include")
 
-sourceCpp("~/rsch/Git/omm-master/src/dpidtheta_calc.cpp")
+sourceCpp("~/rsch/Git/omm-master/src/Delta_calcWith0TxProbs.cpp")
 
-dpidtheta_calc <- function(deta.k.dtheta, dpi.deta)
-  dpidtheta_calc_cpp(deta.k.dtheta, dpi.deta) 
+Delta_calcWith0TxProbs <- function(mm, mm.lag, gamma.mat, CalcTxMtx, tol=1e-4, maxit=10000, trace=0)
+  Delta_calcWith0TxProbs_cpp(mm, mm.lag, gamma.mat, CalcTxMtx, tol, maxit, trace) 

@@ -11,7 +11,7 @@ NumericMatrix hmat_calc_cpp(
 )
 {
   int    km1=Deltavec.length();
-  int    k=km1+1; 
+  int    k=km1+1;      // K - 1
   int    row,col;
   double denom;
   
