@@ -11,5 +11,6 @@ source("FourStatesOneAbsorbing.R")
 ## ACCRE batch run
 args <- commandArgs(trailingOnly=TRUE)
 x    <- as.numeric(args[1])
+cat("Batch", x, "\n")
 set.seed(x)
 simulation(x)
