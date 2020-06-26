@@ -1,14 +1,4 @@
-library(Rcpp)
-
-source("hmat_calc_Rcpp.R")
-source("dfdDelta_calc_Rcpp.R")
-source("Delta_calc_Rcpp.R")
-source("Delta_calcWith0TxProbs_Rcpp.R")
-source("dpidtheta_calc_Rcpp.R")
-source("dpidtheta_calc1_Rcpp.R")
-source("dmumdtheta_calc_Rcpp.R")
-source("dhdgamma_mmlag_calc_Rcpp.R")
-source("LikelihoodFunctions.R")
+source("../functions/functions.R")
 
 simulation <- function(iter)
 {
@@ -126,5 +116,5 @@ for (i in 1:5){ print(c(i, date()))
 
 Results <- list(est=est, covar=covar, conv=conv,
                 est2=est2, covar2=covar2, conv2=conv2)
-save(Results, file=paste('output/i',iter,'.Rdata', sep=""))
+save(Results, file=paste('output/i',formatC(iter, width=3, format="d", flag="0"),'.Rdata', sep=""))
 }

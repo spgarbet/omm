@@ -5,11 +5,11 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=2:00:00
-#SBATCH --mem=4G
+#SBATCH --time=0:30:00
+#SBATCH --mem=500M
 #SBATCH --output=status/job%a.out
 #SBATCH --error=status/job%a.out
-#SBATCH --array=1-2
+#SBATCH --array=1-250
 #SBATCH --constrain=haswell
 
 [[ -d status ]] || mkdir status
