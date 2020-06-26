@@ -70,9 +70,16 @@ for (i in 1:5){ print(c(i, date()))
     }
     for (m in 1:npar){
         for (n in 1:npar){ ObsInfo[m,n] <-  (ObsInfo.tmp[m,n]+ObsInfo.tmp[n,m])/2}}
-    Est <- mod$estimate[-Prof]
-    Covar <- solve(ObsInfo[-Prof,-Prof])
-    
+    if(is.na(Prof))
+    { 
+      Est <- mod$estimate
+      Covar <- solve(ObsInfo)
+    } else
+    {
+      Est <- mod$estimate[-Prof]
+      Covar <- solve(ObsInfo[-Prof,-Prof])
+    }
+
     date()
     
     ########################################### 
@@ -97,6 +104,16 @@ for (i in 1:5){ print(c(i, date()))
         for (n in 1:npar){ ObsInfo[m,n] <-  (ObsInfo.tmp[m,n]+ObsInfo.tmp[n,m])/2}}
     Est2 <- mod2$estimate[-Prof2]
     Covar2 <- solve(ObsInfo[-Prof2,-Prof2])
+    
+    if(is.na(Prof2))
+    { 
+      Est2 <- mod2$estimate
+      Covar2 <- solve(ObsInfo)
+    } else
+    {
+      Est2 <- mod2$estimate[-Prof2]
+      Covar2 <- solve(ObsInfo[-Prof2,-Prof2])
+    }
     
     est[[i]] <- Est
     covar[[i]] <- Covar
