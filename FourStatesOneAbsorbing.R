@@ -70,7 +70,7 @@ for (i in 1:5){ print(c(i, date()))
     }
     for (m in 1:npar){
         for (n in 1:npar){ ObsInfo[m,n] <-  (ObsInfo.tmp[m,n]+ObsInfo.tmp[n,m])/2}}
-    if(is.na(Prof))
+    if(is.na(Prof[1]))
     { 
       Est <- mod$estimate
       Covar <- solve(ObsInfo)
@@ -105,7 +105,7 @@ for (i in 1:5){ print(c(i, date()))
     Est2 <- mod2$estimate[-Prof2]
     Covar2 <- solve(ObsInfo[-Prof2,-Prof2])
     
-    if(is.na(Prof2))
+    if(is.na(Prof2[1]))
     { 
       Est2 <- mod2$estimate
       Covar2 <- solve(ObsInfo)

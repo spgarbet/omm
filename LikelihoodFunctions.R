@@ -66,8 +66,8 @@ GenDatOMTM1 <- function(id,
     for (i in unique(id)){
         idi <- id[id==i]       
         lpi <- lp[id==i]
-        txi <- tx[id==i]
-        ti  <- t[id==i]
+       # txi <- tx[id==i]
+       #  ti  <- t[id==i]
         mi  <- length(idi)
         
         ## marginal mean / probability matrix and lagged values
