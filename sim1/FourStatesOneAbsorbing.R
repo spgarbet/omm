@@ -1,120 +1,85 @@
-source("../functions/functions.R")
+source("../functions/FunctionsRcpp.R")
+source("../functions/LikelihoodFunctions.R")
 
-simulation <- function(iter)
-{
+################################################
+################################################
+################################################
 
-N         <- 250
-mi        <- 25
+simulation <- function(iter){
+    
+est <- covar <- conv <- list()
+est1 <- covar1 <- conv1 <- list()
+est2 <- covar2 <- conv2 <- list()
+est3 <- covar3 <- conv3 <- list()
+    
+N         <- 1000
+mi        <- 20
 id        <- rep(1:N, each=mi)
 tx        <- rep(rep(c(0,1), each=mi), N/2)
 t         <- rep(seq(0,1,length.out=mi), N)
-XMat      <- cbind(tx,t,tx*t)
-alpha     <-c(-3,-1.5, 0)
-beta      <- c(0.25,0.25,.25)
+#XMat      <- cbind(tx,t,tx*t)
+XMat      <- cbind(tx,t)
 
-gamma.mat <- rbind( c(8,3,1),
-                    c(1,5,1),
-                    c(-1,1,5))
+alpha     <-c(-3.25,-.5, 3)
+#beta      <- c(0.25,0.5,0.25)
+beta      <- c(0,0.5)
 
-inits    <- c(alpha, beta, rep(0,9))
-params    <- c(alpha, beta, c(t(gamma.mat)))
+beta.ppo  <- c(-0.5, -2.5)
 
-est <- covar <- conv <- list()
-est2 <- covar2 <- conv2 <- list()
+gamma.mat <- rbind( c(20,2,1),
+                    c(-5,5,2),
+                    c(-5,1,5))
 
-startdt <- date()
-for (i in 1:5){ print(c(i, date()))
-    Y           <- GenDatOMTM1(id=id,
-                               XMat=XMat, 
-                               alpha=alpha, 
-                               beta=beta, 
-                               gamma.mat=gamma.mat,
-                               tx=tx,
-                               t=t)
-    
-    L    <- length(Y)
-    dup  <- duplicated(id)
-    Y1   <- Y
-    drop <- rep(0, length(Y))
-    for (ww in 2:L){ if (Y1[ww-1]==1 & dup[ww]){ Y1[ww]=1
-    drop[ww]=1}}
-    
-    Y2    <- Y[drop==0]
-    XMat2 <- XMat[drop==0,]
-    id2   <- id[drop==0]
-    
-    ###########################################  
-    Prof <- c(NA)
-    mod  <- nlm(logLikeCalc4, params,  yval=Y, x=XMat, id=id, UseGrad=TRUE, stepmax=1, iterlim=250, check.analyticals = FALSE, print.level=0, hessian=FALSE)
-    
-    npar        <- length(mod$estimate)
-    Hessian.eps <- 1e-7
-    eps.mtx     <- diag(rep(Hessian.eps, npar))
-    grad.at.max <- mod$gradient
-    ObsInfo.tmp <- ObsInfo <- matrix(NA, npar, npar)
-    
-    ## Observed Information
-    for (j in 1:npar){
-        temp            <- logLikeCalc4(mod$estimate+eps.mtx[j,], y=Y, x=XMat, id=id, ProfileCol = Prof)
-        ObsInfo.tmp[j,] <- (attr(temp,"gradient")-grad.at.max)/(Hessian.eps)
-    }
-    for (m in 1:npar){
-        for (n in 1:npar){ ObsInfo[m,n] <-  (ObsInfo.tmp[m,n]+ObsInfo.tmp[n,m])/2}}
-    if(is.na(Prof[1]))
-    { 
-      Est <- mod$estimate
-      Covar <- solve(ObsInfo)
-    } else
-    {
-      Est <- mod$estimate[-Prof]
-      Covar <- solve(ObsInfo[-Prof,-Prof])
-    }
+inits        <- c(alpha, beta, rep(0,9))
+params       <- c(alpha, beta, c(t(gamma.mat)))
+params1      <- c(alpha, beta, beta.ppo, c(t(gamma.mat)))
+ppo.mat.indx <- matrix(c(2,2,3,2), byrow=TRUE, ncol=2)
 
-    date()
-    
-    ########################################### 
-    TransIndMtx     = matrix(1,3,4)
-    TransIndMtx[,1] = 0
-    Prof2           = c(7,10,13)
-    mod2 <- nlm(logLikeCalc4, mod$estimate,  yval=Y2, x=XMat2, id=id2, UseGrad=TRUE, stepmax=1, iterlim=250, 
-                check.analyticals = FALSE, print.level=0, hessian=FALSE, TransIndMtx=TransIndMtx, ProfileCol=Prof2)
-    
-    npar        <- length(mod2$estimate)
-    Hessian.eps <- 1e-7
-    eps.mtx     <- diag(rep(Hessian.eps, npar))
-    grad.at.max <- mod2$gradient
-    ObsInfo.tmp <- ObsInfo <- matrix(NA, npar, npar)
-    
-    ## Observed Information
-    for (j in 1:npar){
-        temp            <- logLikeCalc4(mod2$estimate+eps.mtx[j,], y=Y2, x=XMat2, id=id2, ref.muc=3, ProfileCol = Prof2)
-        ObsInfo.tmp[j,] <- (attr(temp,"gradient")-grad.at.max)/(Hessian.eps)
-    }
-    for (m in 1:npar){
-        for (n in 1:npar){ ObsInfo[m,n] <-  (ObsInfo.tmp[m,n]+ObsInfo.tmp[n,m])/2}}
-    Est2 <- mod2$estimate[-Prof2]
-    Covar2 <- solve(ObsInfo[-Prof2,-Prof2])
-    
-    if(is.na(Prof2[1]))
-    { 
-      Est2 <- mod2$estimate
-      Covar2 <- solve(ObsInfo)
-    } else
-    {
-      Est2 <- mod2$estimate[-Prof2]
-      Covar2 <- solve(ObsInfo[-Prof2,-Prof2])
-    }
-    
-    est[[i]] <- Est
-    covar[[i]] <- Covar
-    conv[[i]] <- mod$code
-    est2[[i]] <- Est2
-    covar2[[i]] <- Covar2
-    conv2[[i]] <- mod2$code
-    
+for (blah in 1:4){
+Y       <- GenDatOMTM1(id=id, XMat=XMat, alpha=alpha, beta=beta, gamma.mat=gamma.mat)
+print(date())
+mod          <- nlm(logLikeCalc4, params,  yval=Y, x=XMat, id=id, UseGrad=TRUE, stepmax=.25, iterlim=250, check.analyticals = FALSE, print.level=0, hessian=FALSE)
+print(date())
+mod1         <- nlm(logLikeCalc4, params1,  yval=Y, x=XMat, id=id, UseGrad=TRUE, ppo.mat.indx=ppo.mat.indx, stepmax=.25, iterlim=250, check.analyticals = FALSE, print.level=0, hessian=FALSE)
+print(date())
+
+Y1       <- GenDatOMTM1.ppo(id=id, XMat=XMat, alpha=alpha, beta=beta, gamma.mat=gamma.mat, ppo.mat.indx=ppo.mat.indx, beta.ppo=beta.ppo)
+print(date())
+mod2          <- nlm(logLikeCalc4, params,  yval=Y1, x=XMat, id=id, UseGrad=TRUE, stepmax=.25, iterlim=250, check.analyticals = FALSE, print.level=0, hessian=FALSE)
+print(date())
+mod3         <- nlm(logLikeCalc4, params1,  yval=Y1, x=XMat, id=id, UseGrad=TRUE, ppo.mat.indx=ppo.mat.indx, stepmax=.25, iterlim=250, check.analyticals = FALSE, print.level=0, hessian=FALSE)
+print(date())
+
+library(VGAM)
+mod.vgam1 <- vgam(Y1 ~ t, cumulative(reverse=FALSE, parallel=FALSE))
+coef(mod.vgam1)
+
+## Calculate Variance-Covariance Matrices
+print(date())
+mod.covar  = CalcVarCov(MOD=mod,  epsilon=1e-7,  yval=Y,  x=XMat,  id=id, UseGrad=TRUE)
+mod1.covar = CalcVarCov(MOD=mod1, epsilon=1e-7,  yval=Y, x=XMat, id=id, UseGrad=TRUE, ppo.mat.indx=ppo.mat.indx)
+mod2.covar = CalcVarCov(MOD=mod2, epsilon=1e-7,  yval=Y1, x=XMat, id=id, UseGrad=TRUE)
+mod3.covar = CalcVarCov(MOD=mod3, epsilon=1e-7,  yval=Y1, x=XMat, id=id, UseGrad=TRUE, ppo.mat.indx=ppo.mat.indx)
+print(date())
+
+est[[blah]] <- mod$estimate
+covar[[blah]] <- mod.covar
+conv[[blah]] <- mod$code
+est1[[blah]] <- mod1$estimate
+covar1[[blah]] <- mod1.covar
+conv1[[blah]] <- mod1$code
+est2[[blah]] <- mod2$estimate
+covar2[[blah]] <- mod2.covar
+conv2[[blah]] <- mod2$code
+est3[[blah]] <- mod3$estimate
+covar3[[blah]] <- mod3.covar
+conv3[[blah]] <- mod3$code
 }
 
 Results <- list(est=est, covar=covar, conv=conv,
-                est2=est2, covar2=covar2, conv2=conv2)
-save(Results, file=paste('output/i',formatC(iter, width=3, format="d", flag="0"),'.Rdata', sep=""))
+                est1=est1, covar1=covar1, conv1=conv1,
+                est2=est2, covar2=covar2, conv2=conv2,
+                est3=est3, covar3=covar3, conv3=conv3)
+save(Results, file=paste('output/i',iter,'.rda', sep=""), version=2)
 }
+
